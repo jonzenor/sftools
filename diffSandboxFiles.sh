@@ -1,36 +1,93 @@
 #! /bin/bash
 
-while getopts o:n:c: flag
+type="Apex"
+class=""
+directory=""
+normalizedType="null"
+debug=false
+
+while getopts o:n:f:t:d flag
 do
 	case "${flag}" in
 		o) originalOrg=${OPTARG};;
 		n) newOrg=${OPTARG};;
-		c) apexClass=${OPTARG};;
+		f) file=${OPTARG};;
+		t) type=${OPTARG};;
+		d) debug=true;;
 	esac
 done
 
-echo "Comparing Apex Class ${apexClass} between $originalOrg and $newOrg.";
-sfdx project retrieve start --target-org ${originalOrg} --metadata ApexClass:${apexClass} -r /tmp/sandbox/${originalOrg}/
-sfdx project retrieve start --target-org ${newOrg} --metadata ApexClass:${apexClass} -r /tmp/sandbox/${newOrg}/
+## Lowercase comparison
+normalizedType=`awk '{print tolower($0)}' <<< ${type}`
 
-echo ""
-echo "========== DIFFING FILES =========="
-echo "Command: diff /tmp/sandbox/${originalOrg}/classes/${apexClass}.cls /tmp/sandbox/${newOrg}/classes/${apexClass}.cls"
-echo ""
-echo "========== STARTING DIFF =========="
-echo ""
-diff /tmp/sandbox/${originalOrg}/classes/${apexClass}.cls /tmp/sandbox/${newOrg}/classes/${apexClass}.cls
-echo ""
-echo "========== END OF DIFF =========="
-echo ""
+case ${normalizedType} in
+   apex)
+      class="ApexClass"	
+      directory="classes"
+      ;;
 
-echo ""
-echo "========== DIFFING META FILES =========="
-echo "Command: diff /tmp/sandbox/${originalOrg}/classes/${apexClass}.cls-meta.xml /tmp/sandbox/${newOrg}/classes/${apexClass}.cls-meta.xml"
-echo ""
-echo "========== STARTING DIFF =========="
-echo ""
-diff /tmp/sandbox/${originalOrg}/classes/${apexClass}.cls-meta.xml /tmp/sandbox/${newOrg}/classes/${apexClass}.cls-meta.xml
-echo ""
-echo "========== END OF DIFF =========="
-echo ""
+   lwc)
+      class="LightningComponentBundle"
+      directory="lwc/${file}"
+      ;;
+
+   *)
+      echo "Invalid Type given"
+      exit 0
+      ;;
+esac
+
+if $debug; then
+      echo ""
+      echo "----------"
+      echo "DEBUG VARS"
+      echo "----------"
+      echo ""
+      echo "type = ${type}"
+      echo "normalizedType = ${normalizedType}"
+      echo "class = ${class}"
+      echo "file = ${file}"
+      echo "directory = ${directory}"
+      echo "originalOrg = ${originalOrg}"
+      echo "newOrg = ${newOrg}"
+      echo ""
+fi
+
+diffFiles () {
+
+   if $debug; then
+      echo "DEBUG: diffFiles received value ${1}"
+   fi
+   
+   echo ""
+   echo "========== DIFFING FILES =========="
+   echo "Command: diff /tmp/sandbox/${originalOrg}/${1} /tmp/sandbox/${newOrg}/${1}"
+   echo ""
+   echo "========== STARTING DIFF =========="
+   echo ""
+   diff /tmp/sandbox/${originalOrg}/${1} /tmp/sandbox/${newOrg}/${1}
+   echo ""
+   echo "========== END OF DIFF =========="
+   echo ""
+}
+
+echo "Comparing ${class} ${file} between $originalOrg and $newOrg"
+sfdx project retrieve start --target-org ${originalOrg} --metadata ${class}:${file} -r /tmp/sandbox/${originalOrg}/
+sfdx project retrieve start --target-org ${newOrg} --metadata ${class}:${file} -r /tmp/sandbox/${newOrg}/
+
+if [ ${normalizedType} == "apex" ]; then
+   compareFile="${directory}/${file}.cls"
+
+   diffFiles ${compareFile}
+   diffFiles ${compareFile}-meta.xml
+fi
+
+if [ ${normalizedType} == "lwc" ]; then
+   compareFile="${directory}/${file}"
+
+   diffFiles ${compareFile}.html
+   diffFiles ${compareFile}.js
+   diffFiles ${compareFile}.css
+   diffFiles ${compareFile}.js-meta.xml
+fi
+
