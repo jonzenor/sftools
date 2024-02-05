@@ -5,6 +5,7 @@ class=""
 directory=""
 normalizedType="null"
 debug=false
+file=""
 
 while getopts o:n:f:t:d flag
 do
@@ -36,6 +37,11 @@ case ${normalizedType} in
       exit 0
       ;;
 esac
+
+if [ ${file} == "" ]; then
+   echo "Class File (-f) not provided."
+   exit 1;
+fi
 
 if $debug; then
       echo ""
